@@ -235,6 +235,23 @@ If you would rather label that traffic than drop it, have the client send `x-lit
 
 Create that customer through `/customer/new` with its own budget. That satisfies `validate_end_user_id_in_db`, and an explicit customer budget takes precedence over the default one, so internal traffic can carry a different limit than your real customers.
 
+## Blocking Customers
+
+`POST /customer/block` sets `blocked: true` for the customer IDs in `user_ids`, creating a customer record if needed. `POST /customer/unblock` clears that flag when the blocked-user callback is loaded
+
+<EnterpriseFeature />
+
+Enforcing the stored flag requires a connected database and a valid Enterprise license set through `LITELLM_LICENSE`. Enable the `blocked_user_check` callback:
+
+```yaml showLineNumbers title="config.yaml"
+litellm_settings:
+  callbacks: ["blocked_user_check"]
+```
+
+This database-only setup does not need a `blocked_user_list`. Without the callback, saving the blocked status does not reject LLM requests, and `/customer/unblock` returns HTTP 400 with `Blocked user check was never set. This call has no effect.`
+
+Send the customer's stored `user_id` in the LLM request's top-level `user` field. The hook also accepts top-level `user_id`, which takes precedence when both fields are present. It rejects requests whose value matches a blocked customer's ID
+
 ## Restricting Which Models a Customer Can Use
 
 Set `models` on a customer to limit which models requests made on its behalf can call. A request that carries this customer's ID, through the `user` field or the `x-litellm-customer-id` header, is rejected with a 403 when the requested model is not in the list, even if the virtual key and team allow it. An empty or missing list means the customer adds no model restriction. The customer list only narrows access: the key's and team's own model restrictions still apply on top, so listing a model on the customer never grants a key access to it
